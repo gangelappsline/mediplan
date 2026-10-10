@@ -1,33 +1,19 @@
-import {
-  Briefcase,
-  Eye,
-  EyeOff,
-  HeartPulse,
-  LoaderCircle,
-  Lock,
-  Mail,
-  Smile,
-  Sparkles,
-  Stethoscope,
-  User,
-} from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { Eye, EyeOff, LoaderCircle, Lock, Mail, Stethoscope, User, UserRound } from 'lucide-react';
+import { useState, type ComponentType, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { useRegister } from '@/features/auth/hooks/useAuth';
 import {
   acceptTermsFieldSchema,
-  clinicNameFieldSchema,
   confirmPasswordFieldSchema,
   emailFieldSchema,
   nameFieldSchema,
   passwordFieldSchema,
-  professionalTypeFieldSchema,
   registerSchema,
+  roleFieldSchema,
   type RegisterValues,
 } from '@/features/auth/schemas';
-import type { CrmIcon } from '@/features/crm/labels';
 import { FieldErrors } from '@/shared/components/FieldErrors';
 import { Button } from '@/shared/components/ui/button';
 import { Checkbox } from '@/shared/components/ui/checkbox';
@@ -35,18 +21,27 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { useAppForm } from '@/shared/hooks/useAppForm';
 import { cn } from '@/shared/lib/utils';
-import type { ProfessionalType } from '@/types';
 
-const professionalTypeOptions: ReadonlyArray<{
-  value: ProfessionalType;
+type AccountRole = 'cliente' | 'negocio';
+
+const roleOptions: ReadonlyArray<{
+  value: AccountRole;
   label: string;
-  icon: CrmIcon;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
 }> = [
-  { value: 'dentist', label: 'Dentista', icon: Smile },
-  { value: 'doctor', label: 'Doctor', icon: Stethoscope },
-  { value: 'nurse', label: 'Enfermería', icon: HeartPulse },
-  { value: 'esthetician', label: 'Estética', icon: Sparkles },
-  { value: 'other', label: 'Otro', icon: Briefcase },
+  {
+    value: 'negocio',
+    label: 'Negocio',
+    description: 'Clínica o consultorio: agenda, clientes y leads.',
+    icon: Stethoscope,
+  },
+  {
+    value: 'cliente',
+    label: 'Cliente',
+    description: 'Consulta y gestiona tus citas.',
+    icon: UserRound,
+  },
 ];
 
 function handlePlaceholderLink(event: { preventDefault: () => void }) {
@@ -85,7 +80,7 @@ function passwordStrength(password: string): StrengthResult {
   return { score, ...strengthMeta[score] };
 }
 
-/** Formulario de registro con medidor de contraseña y selector de perfil. */
+/** Formulario de registro contra `POST /register` (roles cliente y negocio). */
 function RegisterForm() {
   const register = useRegister();
   const [showPassword, setShowPassword] = useState(false);
@@ -97,17 +92,16 @@ function RegisterForm() {
       email: '',
       password: '',
       confirmPassword: '',
-      professionalType: 'dentist',
-      clinicName: '',
+      role: 'negocio',
       acceptTerms: false,
     },
     onSubmit: (values) => {
       register.mutate({
-        name: values.name,
-        email: values.email,
+        name: values.name.trim(),
+        email: values.email.trim(),
         password: values.password,
-        professionalType: values.professionalType,
-        clinicName: values.clinicName?.trim() ? values.clinicName.trim() : undefined,
+        password_confirmation: values.confirmPassword,
+        role: values.role,
       });
     },
   });
@@ -122,20 +116,22 @@ function RegisterForm() {
     <div className="space-y-7">
       <div className="space-y-2 text-center">
         <h1 className="text-3xl font-bold tracking-tight">Crea tu cuenta</h1>
-        <p className="text-muted-foreground">Empieza a gestionar tu clínica en minutos.</p>
+        <p className="text-muted-foreground">Empieza a organizar tu agenda en minutos.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-        {/* Sección: cuenta */}
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         <div className="space-y-4">
           <p className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] text-primary">
               1
             </span>
-            Tu cuenta
+            Tus datos
           </p>
 
-          <form.Field name="name" validators={{ onChange: nameFieldSchema, onBlur: nameFieldSchema }}>
+          <form.Field
+            name="name"
+            validators={{ onChange: nameFieldSchema, onBlur: nameFieldSchema }}
+          >
             {(field) => (
               <div className="space-y-2">
                 <Label htmlFor={field.name}>Nombre completo</Label>
@@ -144,9 +140,8 @@ function RegisterForm() {
                   <Input
                     id={field.name}
                     name={field.name}
-                    type="text"
                     autoComplete="name"
-                    placeholder="Dra. Ana García"
+                    placeholder="Ana Gabriela Torres"
                     className="pl-9"
                     value={field.state.value}
                     onChange={(event) => {
@@ -175,7 +170,7 @@ function RegisterForm() {
                     name={field.name}
                     type="email"
                     autoComplete="email"
-                    placeholder="tu@clinica.com"
+                    placeholder="tu@correo.com"
                     className="pl-9"
                     value={field.state.value}
                     onChange={(event) => {
@@ -229,7 +224,6 @@ function RegisterForm() {
                       </button>
                     </div>
 
-                    {/* Medidor de fortaleza */}
                     <div className="flex items-center gap-2" aria-hidden="true">
                       <div className="flex h-1.5 flex-1 gap-1">
                         {[1, 2, 3, 4].map((step) => (
@@ -284,31 +278,23 @@ function RegisterForm() {
           </div>
         </div>
 
-        {/* Sección: perfil profesional */}
         <div className="space-y-4">
           <p className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] text-primary">
               2
             </span>
-            Tu perfil profesional
+            ¿Qué tipo de cuenta necesitas?
           </p>
 
           <form.Field
-            name="professionalType"
-            validators={{
-              onChange: professionalTypeFieldSchema,
-              onBlur: professionalTypeFieldSchema,
-            }}
+            name="role"
+            validators={{ onChange: roleFieldSchema, onBlur: roleFieldSchema }}
           >
             {(field) => (
               <div className="space-y-2">
-                <Label id="professional-type-label">¿A qué te dedicas?</Label>
-                <div
-                  role="radiogroup"
-                  aria-labelledby="professional-type-label"
-                  className="grid grid-cols-2 gap-2 sm:grid-cols-5"
-                >
-                  {professionalTypeOptions.map((option) => {
+                <Label id="account-role-label">Tipo de cuenta</Label>
+                <div role="radiogroup" aria-labelledby="account-role-label" className="grid gap-2 sm:grid-cols-2">
+                  {roleOptions.map((option) => {
                     const isSelected = field.state.value === option.value;
 
                     return (
@@ -322,47 +308,22 @@ function RegisterForm() {
                         }}
                         onBlur={field.handleBlur}
                         className={cn(
-                          'flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-xs font-medium transition-all outline-none',
+                          'flex items-start gap-3 rounded-xl border p-3 text-left transition-all outline-none',
                           'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
                           isSelected
                             ? 'border-primary bg-primary/10 text-primary shadow-xs'
                             : 'border-border text-muted-foreground hover:border-primary/40 hover:bg-muted hover:text-foreground',
                         )}
                       >
-                        <option.icon className="size-5" />
-                        {option.label}
+                        <option.icon className="mt-0.5 size-5 shrink-0" />
+                        <span className="space-y-0.5">
+                          <span className="block text-sm font-medium">{option.label}</span>
+                          <span className="block text-xs text-muted-foreground">{option.description}</span>
+                        </span>
                       </button>
                     );
                   })}
                 </div>
-                <FieldErrors errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field
-            name="clinicName"
-            validators={{ onChange: clinicNameFieldSchema, onBlur: clinicNameFieldSchema }}
-          >
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>
-                  Nombre de la clínica / consultorio{' '}
-                  <span className="font-normal text-muted-foreground">(opcional)</span>
-                </Label>
-                <Input
-                  id={field.name}
-                  name={field.name}
-                  type="text"
-                  autoComplete="organization"
-                  placeholder="Clínica Dental Sonrisa"
-                  value={field.state.value ?? ''}
-                  onChange={(event) => {
-                    field.handleChange(event.target.value);
-                  }}
-                  onBlur={field.handleBlur}
-                  aria-invalid={!field.state.meta.isValid}
-                />
                 <FieldErrors errors={field.state.meta.errors} />
               </div>
             )}
@@ -422,29 +383,13 @@ function RegisterForm() {
                     Creando cuenta…
                   </>
                 ) : (
-                  'Crear cuenta gratis'
+                  'Crear cuenta'
                 )}
               </Button>
             );
           }}
         </form.Subscribe>
       </form>
-
-      {/* Confianza */}
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <span className="size-1.5 rounded-full bg-emerald-500" />
-          14 días gratis
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="size-1.5 rounded-full bg-emerald-500" />
-          Sin tarjeta de crédito
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="size-1.5 rounded-full bg-emerald-500" />
-          Cancela cuando quieras
-        </span>
-      </div>
 
       <p className="text-center text-sm text-muted-foreground">
         ¿Ya tienes cuenta?{' '}

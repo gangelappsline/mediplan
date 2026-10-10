@@ -1,14 +1,12 @@
-import { Eye, EyeOff, LoaderCircle, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, LoaderCircle, Lock, Mail, ShieldCheck } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { toast } from 'sonner';
 
 import { useLogin } from '@/features/auth/hooks/useAuth';
-import { GoogleMark, MicrosoftMark } from '@/features/auth/components/SocialMarks';
 import {
   emailFieldSchema,
+  loginPasswordFieldSchema,
   loginSchema,
-  passwordFieldSchema,
   type LoginValues,
 } from '@/features/auth/schemas';
 import { FieldErrors } from '@/shared/components/FieldErrors';
@@ -28,7 +26,7 @@ function readRememberedEmail(): string {
   }
 }
 
-/** Formulario de inicio de sesión con recordatorio de correo y acceso social. */
+/** Formulario de inicio de sesión contra `POST /login`. */
 function LoginForm() {
   const login = useLogin();
   const [showPassword, setShowPassword] = useState(false);
@@ -60,44 +58,17 @@ function LoginForm() {
     void form.handleSubmit();
   }
 
-  function handleSocial(provider: string) {
-    toast.info(`El acceso con ${provider} estará disponible próximamente.`);
-  }
-
   return (
     <div className="space-y-7">
       <div className="space-y-2 text-center">
         <h1 className="text-3xl font-bold tracking-tight">Bienvenido de nuevo</h1>
-        <p className="text-muted-foreground">
-          Accede a tu cuenta para gestionar tu clínica.
-        </p>
-      </div>
-
-      {/* Acceso rápido */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button type="button" variant="outline" onClick={() => handleSocial('Google')}>
-          <GoogleMark />
-          Google
-        </Button>
-        <Button type="button" variant="outline" onClick={() => handleSocial('Microsoft')}>
-          <MicrosoftMark />
-          Microsoft
-        </Button>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <span className="h-px flex-1 bg-border" />
-        <span className="text-xs text-muted-foreground uppercase">o con tu correo</span>
-        <span className="h-px flex-1 bg-border" />
+        <p className="text-muted-foreground">Accede a tu cuenta para continuar.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <form.Field
           name="email"
-          validators={{
-            onChange: emailFieldSchema,
-            onBlur: emailFieldSchema,
-          }}
+          validators={{ onChange: emailFieldSchema, onBlur: emailFieldSchema }}
         >
           {(field) => (
             <div className="space-y-2">
@@ -109,7 +80,7 @@ function LoginForm() {
                   name={field.name}
                   type="email"
                   autoComplete="email"
-                  placeholder="tu@clinica.com"
+                  placeholder="tu@correo.com"
                   className="pl-9"
                   value={field.state.value}
                   onChange={(event) => {
@@ -126,25 +97,11 @@ function LoginForm() {
 
         <form.Field
           name="password"
-          validators={{
-            onChange: passwordFieldSchema,
-            onBlur: passwordFieldSchema,
-          }}
+          validators={{ onChange: loginPasswordFieldSchema, onBlur: loginPasswordFieldSchema }}
         >
           {(field) => (
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor={field.name}>Contraseña</Label>
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-primary hover:underline"
-                  onClick={() => {
-                    toast.info('La recuperación de contraseña estará disponible próximamente.');
-                  }}
-                >
-                  ¿Olvidaste tu contraseña?
-                </button>
-              </div>
+              <Label htmlFor={field.name}>Contraseña</Label>
               <div className="relative">
                 <Lock className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -208,20 +165,9 @@ function LoginForm() {
         </form.Subscribe>
       </form>
 
-      {/* Pista de demostración */}
-      <div className="flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-sm">
-        <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
-        <p className="text-muted-foreground">
-          <span className="font-medium text-foreground">Modo demo:</span> entra con cualquier correo
-          y contraseña de 8+ caracteres. Usa{' '}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">fail@mediplan.app</code> para ver
-          el manejo de errores.
-        </p>
-      </div>
-
       <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
         <ShieldCheck className="size-3.5 text-emerald-500" />
-        Conexión segura · Tus datos se quedan en tu navegador
+        Conexión segura con el servidor de MediPlan
       </div>
 
       <p className="text-center text-sm text-muted-foreground">
