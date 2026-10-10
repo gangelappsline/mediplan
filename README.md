@@ -3,10 +3,9 @@
 Sistema de gestión (SPA) para profesionales de la salud y la estética: agenda de citas,
 seguimiento de pacientes y notificaciones de promociones y descuentos.
 
-> **Fase actual (1):** Landing Page + autenticación. El dashboard, la agenda y los módulos de
-> seguimiento se implementarán en fases posteriores; la arquitectura ya está preparada para
-> ellos (`/dashboard` es una ruta placeholder y existen tipos compartidos para `Appointment`,
-> `Patient` y `Clinic`).
+> **Fase actual:** Landing, autenticación y panel de clínica con sincronización de WhatsApp
+> contra la API oficial de Meta (Cloud API / Graph API). La agenda y el seguimiento de
+> pacientes siguen preparados como fases posteriores.
 
 ## Stack tecnológico
 
@@ -76,8 +75,10 @@ src/
 │   │   └── pages/
 │   │       ├── LoginPage.tsx
 │   │       └── RegisterPage.tsx
-│   └── dashboard/
-│       └── pages/DashboardPage.tsx   # Placeholder de la fase 2
+│   ├── dashboard/
+│   │   ├── components/ClinicShell.tsx
+│   │   └── pages/                    # Resumen y layout del panel
+│   └── whatsapp/                     # Cloud API: formulario, guía y envíos
 ├── shared/
 │   ├── components/
 │   │   ├── ui/                       # Button, Input, Label, Card, Checkbox, Select, Badge
@@ -106,8 +107,42 @@ src/
 | `/` | Landing: hero, funciones, precios, testimonios y CTA |
 | `/login` | Inicio de sesión (TanStack Form + Zod) |
 | `/register` | Registro con tipo de profesional y aceptación de términos |
-| `/dashboard` | Placeholder de la fase 2 (accesible tras login/registro) |
+| `/dashboard` | Panel de la clínica: resumen y acceso a WhatsApp |
+| `/dashboard/whatsapp` | Sincronización de WhatsApp con Graph API de Meta |
 | `*` | Página 404 |
+
+## WhatsApp (API de Meta)
+
+En `/dashboard/whatsapp` la clínica sincroniza su número con **WhatsApp Cloud API**
+(`https://graph.facebook.com`, por defecto `v26.0`). No hay modo simulado: si Meta rechaza
+el token o el Phone number ID, la cuenta no queda conectada.
+
+Hay dos caminos:
+
+1. **Credenciales de Cloud API** — token permanente de un usuario del sistema, Phone number ID
+   y, recomendado, WABA ID. Es el camino que funciona con la app propia de la clínica.
+2. **Embedded Signup v4** — botón «Continuar con Facebook». Requiere `META_APP_ID`,
+   `META_APP_SECRET` y `META_CONFIG_ID` (o pegarlos una vez en el formulario). v2 y v3 caducan
+   el 15 de octubre de 2026.
+
+Las llamadas salen del servidor de MediPlan si puede llegar a `graph.facebook.com`. Si no
+(por ejemplo en un entorno sin salida a Facebook), el navegador llama a Graph API directamente
+y el token queda solo en ese navegador. El App Secret no se incluye en el bundle.
+
+Variables opcionales en `.env` (ver `.env.example`):
+
+```bash
+META_APP_ID=
+META_APP_SECRET=
+META_CONFIG_ID=
+META_SOLUTION_ID=
+META_GRAPH_VERSION=v26.0
+META_WEBHOOK_VERIFY_TOKEN=
+```
+
+El webhook de Meta es `POST/GET /api/whatsapp/webhook`. Los tokens guardados en el servidor
+viven en `data/` (ignorado por git). La guía paso a paso, con las pantallas actuales de Meta,
+está dentro del propio panel.
 
 ## Demo sin backend
 

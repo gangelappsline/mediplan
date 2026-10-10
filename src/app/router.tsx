@@ -44,12 +44,27 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        // Ruta placeholder: el dashboard se implementa en la fase 2.
         path: '/dashboard',
         lazy: async () => {
-          const { DashboardPage } = await import('@/features/dashboard/pages/DashboardPage');
-          return { Component: DashboardPage };
+          const { DashboardLayout } = await import('@/features/dashboard/pages/DashboardLayout');
+          return { Component: DashboardLayout };
         },
+        children: [
+          {
+            index: true,
+            lazy: async () => {
+              const { DashboardPage } = await import('@/features/dashboard/pages/DashboardPage');
+              return { Component: DashboardPage };
+            },
+          },
+          {
+            path: 'whatsapp',
+            lazy: async () => {
+              const { WhatsAppPage } = await import('@/features/whatsapp/pages/WhatsAppPage');
+              return { Component: WhatsAppPage };
+            },
+          },
+        ],
       },
       {
         path: '*',

@@ -1,6 +1,12 @@
 # Dependencies
 node_modules
 
+# Secretos y conexiones de WhatsApp (tokens de Meta)
+.env
+.env.*
+!.env.example
+data/
+
 # Build output
 dist
 dist-ssr
