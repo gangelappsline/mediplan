@@ -1,12 +1,85 @@
-import { createBrowserRouter } from 'react-router-dom';
+import type { ComponentType } from 'react';
+import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 
+import { RequireRole } from '@/features/auth/components/RequireRole';
+import { AdminLayout, BusinessLayout, ClientLayout } from '@/features/panel/layouts';
 import { AuthLayout } from '@/shared/components/layout/AuthLayout';
 import { MarketingLayout } from '@/shared/components/layout/MarketingLayout';
 import { RootLayout } from '@/shared/components/layout/RootLayout';
 
 /**
- * Router declarativo con `createBrowserRouter` y lazy loading por ruta:
- * cada página se descarga solo cuando se necesita.
+ * Carga perezosa de una página con nombre: cada pantalla se descarga solo
+ * cuando se visita por primera vez.
+ */
+function lazyPage<M extends Record<string, ComponentType>, K extends keyof M & string>(
+  load: () => Promise<M>,
+  name: K,
+) {
+  return {
+    lazy: async () => {
+      const module = await load();
+      return { Component: module[name] };
+    },
+  };
+}
+
+/** Rutas del panel de negocio (`/dashboard`, rol `business`). */
+const businessRoutes: RouteObject[] = [
+  { index: true, ...lazyPage(() => import('@/features/business/pages/BusinessDashboardPage'), 'BusinessDashboardPage') },
+  { path: 'agenda', ...lazyPage(() => import('@/features/business/pages/AgendaPage'), 'AgendaPage') },
+  {
+    path: 'agenda/citas/:id',
+    ...lazyPage(() => import('@/features/business/pages/AppointmentDetailPage'), 'AppointmentDetailPage'),
+  },
+  { path: 'clientes', ...lazyPage(() => import('@/features/business/pages/ClientsPage'), 'ClientsPage') },
+  { path: 'clientes/nuevo', ...lazyPage(() => import('@/features/business/pages/ClientFormPage'), 'ClientFormPage') },
+  { path: 'clientes/:id', ...lazyPage(() => import('@/features/business/pages/ClientDetailPage'), 'ClientDetailPage') },
+  {
+    path: 'clientes/:id/editar',
+    ...lazyPage(() => import('@/features/business/pages/ClientFormPage'), 'ClientFormPage'),
+  },
+  { path: 'pipeline', ...lazyPage(() => import('@/features/business/pages/PipelinePage'), 'PipelinePage') },
+  { path: 'pipeline/nuevo', ...lazyPage(() => import('@/features/business/pages/LeadFormPage'), 'LeadFormPage') },
+  { path: 'pipeline/:id', ...lazyPage(() => import('@/features/business/pages/LeadDetailPage'), 'LeadDetailPage') },
+  { path: 'pipeline/:id/editar', ...lazyPage(() => import('@/features/business/pages/LeadFormPage'), 'LeadFormPage') },
+  { path: 'seguimientos', ...lazyPage(() => import('@/features/business/pages/FollowUpsPage'), 'FollowUpsPage') },
+  { path: 'whatsapp', ...lazyPage(() => import('@/features/whatsapp/pages/WhatsAppPage'), 'WhatsAppPage') },
+  { path: 'reportes', ...lazyPage(() => import('@/features/business/pages/ReportsPage'), 'ReportsPage') },
+  { path: 'configuracion', ...lazyPage(() => import('@/features/business/pages/SettingsPage'), 'SettingsPage') },
+];
+
+/** Rutas del panel de cliente (`/cuenta`, rol `client`). */
+const clientRoutes: RouteObject[] = [
+  { index: true, ...lazyPage(() => import('@/features/cliente/pages/ClientDashboardPage'), 'ClientDashboardPage') },
+  { path: 'citas', ...lazyPage(() => import('@/features/cliente/pages/MyAppointmentsPage'), 'MyAppointmentsPage') },
+  {
+    path: 'citas/:id',
+    ...lazyPage(() => import('@/features/cliente/pages/MyAppointmentDetailPage'), 'MyAppointmentDetailPage'),
+  },
+];
+
+/** Rutas del panel de administración (`/admin`, rol `admin`). */
+const adminRoutes: RouteObject[] = [
+  { index: true, ...lazyPage(() => import('@/features/admin/pages/AdminDashboardPage'), 'AdminDashboardPage') },
+  { path: 'usuarios', ...lazyPage(() => import('@/features/admin/pages/AdminUsersPage'), 'AdminUsersPage') },
+  { path: 'usuarios/nuevo', ...lazyPage(() => import('@/features/admin/pages/AdminUserFormPage'), 'AdminUserFormPage') },
+  { path: 'usuarios/:id', ...lazyPage(() => import('@/features/admin/pages/AdminUserDetailPage'), 'AdminUserDetailPage') },
+  {
+    path: 'usuarios/:id/editar',
+    ...lazyPage(() => import('@/features/admin/pages/AdminUserFormPage'), 'AdminUserFormPage'),
+  },
+  { path: 'negocios', ...lazyPage(() => import('@/features/admin/pages/AdminBusinessesPage'), 'AdminBusinessesPage') },
+  {
+    path: 'negocios/:id',
+    ...lazyPage(() => import('@/features/admin/pages/AdminBusinessDetailPage'), 'AdminBusinessDetailPage'),
+  },
+  { path: 'leads', ...lazyPage(() => import('@/features/admin/pages/AdminLeadsPage'), 'AdminLeadsPage') },
+  { path: 'roles', ...lazyPage(() => import('@/features/admin/pages/AdminRolesPage'), 'AdminRolesPage') },
+];
+
+/**
+ * Router declarativo con `createBrowserRouter`. Las rutas de cada panel
+ * exigen su rol mediante `RequireRole`.
  */
 export const router = createBrowserRouter([
   {
@@ -44,88 +117,32 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        path: '/dashboard',
-        lazy: async () => {
-          const { DashboardLayout } = await import('@/features/dashboard/pages/DashboardLayout');
-          return { Component: DashboardLayout };
-        },
+        element: <RequireRole roles={['business']} />,
         children: [
           {
-            index: true,
-            lazy: async () => {
-              const { DashboardPage } = await import('@/features/dashboard/pages/DashboardPage');
-              return { Component: DashboardPage };
-            },
+            path: '/dashboard',
+            element: <BusinessLayout />,
+            children: businessRoutes,
           },
+        ],
+      },
+      {
+        element: <RequireRole roles={['client']} />,
+        children: [
           {
-            path: 'agenda',
-            lazy: async () => {
-              const { AgendaPage } = await import('@/features/crm/pages/AgendaPage');
-              return { Component: AgendaPage };
-            },
+            path: '/cuenta',
+            element: <ClientLayout />,
+            children: clientRoutes,
           },
+        ],
+      },
+      {
+        element: <RequireRole roles={['admin']} />,
+        children: [
           {
-            path: 'clientes',
-            lazy: async () => {
-              const { ClientsPage } = await import('@/features/crm/pages/ClientsPage');
-              return { Component: ClientsPage };
-            },
-          },
-          {
-            path: 'clientes/nuevo',
-            lazy: async () => {
-              const { ClientFormPage } = await import('@/features/crm/pages/ClientFormPage');
-              return { Component: ClientFormPage };
-            },
-          },
-          {
-            path: 'clientes/:clienteId',
-            lazy: async () => {
-              const { ClientDetailPage } = await import('@/features/crm/pages/ClientDetailPage');
-              return { Component: ClientDetailPage };
-            },
-          },
-          {
-            path: 'clientes/:clienteId/editar',
-            lazy: async () => {
-              const { ClientFormPage } = await import('@/features/crm/pages/ClientFormPage');
-              return { Component: ClientFormPage };
-            },
-          },
-          {
-            path: 'pipeline',
-            lazy: async () => {
-              const { PipelinePage } = await import('@/features/crm/pages/PipelinePage');
-              return { Component: PipelinePage };
-            },
-          },
-          {
-            path: 'seguimientos',
-            lazy: async () => {
-              const { FollowUpsPage } = await import('@/features/crm/pages/FollowUpsPage');
-              return { Component: FollowUpsPage };
-            },
-          },
-          {
-            path: 'whatsapp',
-            lazy: async () => {
-              const { WhatsAppPage } = await import('@/features/whatsapp/pages/WhatsAppPage');
-              return { Component: WhatsAppPage };
-            },
-          },
-          {
-            path: 'reportes',
-            lazy: async () => {
-              const { ReportsPage } = await import('@/features/crm/pages/ReportsPage');
-              return { Component: ReportsPage };
-            },
-          },
-          {
-            path: 'configuracion',
-            lazy: async () => {
-              const { SettingsPage } = await import('@/features/crm/pages/SettingsPage');
-              return { Component: SettingsPage };
-            },
+            path: '/admin',
+            element: <AdminLayout />,
+            children: adminRoutes,
           },
         ],
       },

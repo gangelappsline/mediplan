@@ -1,95 +1,69 @@
-import type { AuthResponse, LoginPayload, RegisterPayload, User } from '@/types';
+import { apiRequest } from '@/shared/api/http';
+import { clearSession, getSession, saveSession } from '@/shared/api/session';
+import type {
+  AuthResponse,
+  LoginPayload,
+  MeResponse,
+  MessageResponse,
+  RegisterPayload,
+  User,
+} from '@/types';
 
 /**
- * Servicio de autenticación simulado (sin backend real).
- *
- * Todas las llamadas se resuelven con `setTimeout` para imitar la latencia de
- * una API. La sesión se persiste en `localStorage` para que el placeholder de
- * `/dashboard` pueda mostrar los datos del usuario.
- *
- * Demo: usa el email `fail@mediplan.app` para forzar un error de API y ver el
- * manejo de errores con Sonner.
+ * Endpoints de autenticación: `POST /register`, `POST /login`,
+ * `POST /logout` y `GET /me`. Los tokens son de Laravel Passport.
  */
 
-const SESSION_STORAGE_KEY = 'mediplan-auth';
-const API_LATENCY_MS = 900;
-
-const DEMO_FAILURE_EMAIL = 'fail@mediplan.app';
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+/** `POST /login` — guarda el token y el usuario en la sesión. */
+export async function loginRequest(payload: LoginPayload): Promise<User> {
+  const response = await apiRequest<AuthResponse>('/login', {
+    method: 'POST',
+    body: { email: payload.email.trim(), password: payload.password },
+    auth: false,
   });
+
+  saveSession({ token: response.data.token, user: response.data.user });
+  return response.data.user;
 }
 
-function assertNotDemoFailure(email: string): void {
-  if (email.trim().toLowerCase() === DEMO_FAILURE_EMAIL) {
-    throw new Error('No pudimos iniciar sesión. Verifica tus credenciales e inténtalo de nuevo.');
-  }
-}
-
-function buildUserFromLogin(payload: LoginPayload): User {
-  const fallbackName = payload.email.split('@')[0] ?? 'profesional';
-
-  return {
-    id: crypto.randomUUID(),
-    name: fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1),
-    email: payload.email,
-    professionalType: 'other',
-    createdAt: new Date().toISOString(),
-  };
-}
-
-function persistSession(response: AuthResponse): void {
-  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(response));
-}
-
-/** Recupera la sesión persistida (si existe). */
-export function loadSession(): AuthResponse | null {
-  try {
-    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AuthResponse) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Elimina la sesión persistida. */
-export function clearSession(): void {
-  window.localStorage.removeItem(SESSION_STORAGE_KEY);
-}
-
-/** Simula el login contra la API. */
-export async function loginRequest(payload: LoginPayload): Promise<AuthResponse> {
-  await delay(API_LATENCY_MS);
-  assertNotDemoFailure(payload.email);
-
-  const response: AuthResponse = {
-    token: `demo-token-${crypto.randomUUID()}`,
-    user: buildUserFromLogin(payload),
-  };
-
-  persistSession(response);
-  return response;
-}
-
-/** Simula el registro de una nueva cuenta. */
-export async function registerRequest(payload: RegisterPayload): Promise<AuthResponse> {
-  await delay(API_LATENCY_MS);
-  assertNotDemoFailure(payload.email);
-
-  const response: AuthResponse = {
-    token: `demo-token-${crypto.randomUUID()}`,
-    user: {
-      id: crypto.randomUUID(),
-      name: payload.name,
-      email: payload.email,
-      professionalType: payload.professionalType,
-      clinicName: payload.clinicName,
-      createdAt: new Date().toISOString(),
+/** `POST /register` — solo permite los roles `cliente` y `negocio`. */
+export async function registerRequest(payload: RegisterPayload): Promise<User> {
+  const response = await apiRequest<AuthResponse>('/register', {
+    method: 'POST',
+    body: {
+      name: payload.name.trim(),
+      email: payload.email.trim(),
+      password: payload.password,
+      password_confirmation: payload.password_confirmation,
+      role: payload.role,
     },
-  };
+    auth: false,
+  });
 
-  persistSession(response);
-  return response;
+  saveSession({ token: response.data.token, user: response.data.user });
+  return response.data.user;
+}
+
+/**
+ * `POST /logout` — revoca solo el token actual. La sesión local se elimina
+ * siempre, aunque la petición falle (por ejemplo, si el token ya expiró).
+ */
+export async function logoutRequest(): Promise<void> {
+  try {
+    await apiRequest<MessageResponse>('/logout', { method: 'POST' });
+  } finally {
+    clearSession();
+  }
+}
+
+/** `GET /me` — refresca el usuario (y sus roles) de la sesión activa. */
+export async function meRequest(): Promise<User> {
+  const response = await apiRequest<MeResponse>('/me');
+  const session = getSession();
+
+  if (session) {
+    saveSession({ token: session.token, user: response.data.user });
+  }
+
+  return response.data.user;
 }

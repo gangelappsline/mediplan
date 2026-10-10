@@ -1,11 +1,139 @@
 # MediPlan — La agenda inteligente para tu clínica
 
-Sistema de gestión (SPA) para profesionales de la salud y la estética: agenda de citas,
-seguimiento de pacientes y notificaciones de promociones y descuentos.
+Panel web (SPA) para profesionales de la salud y la estética: agenda de citas, CRM de
+clientes y leads, y área personal para pacientes. Se conecta a la **API REST de MediPlan**
+(`/api`, autenticación con Bearer de Laravel Passport) y sincroniza WhatsApp con la API
+oficial de Meta.
 
-> **Fase actual:** Landing, autenticación mejorada y panel de clínica con CRM completo
-> (clientes, seguimientos, pipeline, agenda y reportes) más sincronización de WhatsApp
-> contra la API oficial de Meta (Cloud API / Graph API).
+> **Fase actual:** cobertura completa de los **47 endpoints** de la API de MediPlan:
+> autenticación (4), panel de negocio (24), área de cliente (4) y panel de administración (15).
+> Cada pantalla usa su petición real; no hay datos simulados ni `localStorage` para el CRM.
+
+## Integración con la API de MediPlan
+
+La especificación OpenAPI vive en `https://mediplan-api.appsline.com.mx/docs?api-docs.json`.
+El cliente HTTP está en `src/shared/api/`:
+
+- `http.ts` — `apiRequest()`: JSON (`Content-Type: application/json` solo cuando hay cuerpo),
+  `Accept: application/json` y `Authorization: Bearer <token>` en cada petición. Los errores
+  se normalizan en `ApiError` (`status`, mensaje en español y `errors` de los 422).
+- `session.ts` — sesión persistida (`mediplan-auth`) y suscripción reactiva. Un 401 en una
+  petición autenticada cierra la sesión.
+- `resources.ts` — helpers que desempaquetan `{ message, data, meta }`, limpian filtros vacíos y
+  omiten campos `undefined` en los cuerpos.
+
+Por el proxy de Vite, el navegador llama a `/api/...` y el servidor de desarrollo o `vite preview`
+lo reenvía a `VITE_API_PROXY_TARGET` (por defecto `https://mediplan-api.appsline.com.mx`), sin CORS.
+Si la API está en otro origen en producción, define `VITE_API_BASE_URL`.
+
+### Endpoints por módulo
+
+| Módulo | Archivo de la API | Endpoints |
+| --- | --- | --- |
+| Autenticación | `src/features/auth/api.ts` | `POST /register`, `POST /login`, `POST /logout`, `GET /me` |
+| Negocio | `src/features/business/api.ts` | `GET /business/dashboard`; `GET\|POST /business/clients`; `GET\|PUT\|DELETE /business/clients/{client}`; `GET\|POST /business/leads`; `GET\|PUT\|DELETE /business/leads/{lead}`; `PATCH /business/leads/{lead}/status`; `POST /business/leads/{lead}/convert`; `GET\|POST /business/appointments`; `GET /business/appointments/agenda`; `GET\|PUT\|DELETE /business/appointments/{appointment}`; `PATCH /business/appointments/{appointment}/status`; `GET\|PUT /business/profile`; `GET\|PUT /business/settings` |
+| Cliente | `src/features/cliente/api.ts` | `GET /client/dashboard`; `GET /client/appointments`; `GET /client/appointments/{appointment}`; `PATCH /client/appointments/{appointment}/cancel` |
+| Administrador | `src/features/admin/api.ts` | `GET /admin/dashboard`; `GET\|POST /admin/users`; `GET\|PUT\|DELETE /admin/users/{user}`; `PATCH /admin/users/{user}/status`; `PUT /admin/users/{user}/roles`; `GET /admin/businesses`; `GET\|PUT\|DELETE /admin/businesses/{business}`; `PATCH /admin/businesses/{business}/status`; `GET /admin/leads`; `GET /admin/roles` |
+
+### Validación y formato de datos
+
+Los esquemas Zod (`schemas.ts` de cada módulo) replican las reglas de la spec antes de enviar:
+
+- Leads: requieren correo **o** teléfono; `estimated_value` con hasta 2 decimales.
+- Citas: `ends_at` posterior a `starts_at`; las fechas locales (`datetime-local`) se convierten a
+  ISO 8601 UTC. Al editar, el estado se cambia con su propio endpoint (`PATCH …/status`); cancelar
+  exige `cancel_reason`.
+- Configuración: duración 5–480, intervalo 5–240, aviso mínimo 0–10080, anticipación 1–365 días,
+  moneda de 3 letras y horario `HH:MM` por día con cierre posterior a apertura.
+- Admin: contraseña de 8+ caracteres con confirmación; el campo `role` acepta
+  `cliente | negocio | administrador`.
+- Los errores 422 muestran el primer mensaje de validación devuelto por la API.
+
+### Rutas por rol
+
+Cada panel está protegido por `RequireRole` (`src/features/auth/components/RequireRole.tsx`): sin
+sesión redirige a `/login`; con un rol que no corresponde, redirige al inicio de su rol.
+
+## Rutas
+
+| Ruta | Rol | Descripción |
+| --- | --- | --- |
+| `/` | público | Landing |
+| `/login`, `/register` | público | Inicio de sesión y registro (`cliente` o `negocio`) |
+| `/dashboard` | `business` | Resumen del negocio (`GET /business/dashboard`) |
+| `/dashboard/agenda` | `business` | Agenda semanal (`/business/appointments/agenda`) o listado (`/business/appointments`) |
+| `/dashboard/agenda/citas/:id` | `business` | Detalle de cita: editar, cambiar estado, eliminar |
+| `/dashboard/clientes` | `business` | Clientes: búsqueda, estado, orden y paginación |
+| `/dashboard/clientes/nuevo`, `/:id`, `/:id/editar` | `business` | Alta, ficha (con sus citas) y edición de cliente |
+| `/dashboard/pipeline` | `business` | Leads: búsqueda, estado, orden y paginación |
+| `/dashboard/pipeline/nuevo`, `/:id`, `/:id/editar` | `business` | Alta, detalle (estado, conversión, eliminar) y edición de lead |
+| `/dashboard/seguimientos` | `business` | Leads abiertos por fecha de seguimiento (vencidos, hoy, 7 días) |
+| `/dashboard/whatsapp` | `business` | Sincronización con WhatsApp Cloud API |
+| `/dashboard/reportes` | `business` | Métricas, actividad mensual y pipeline |
+| `/dashboard/configuracion` | `business` | Perfil del negocio y reglas de agenda |
+| `/cuenta` | `client` | Resumen del cliente |
+| `/cuenta/citas`, `/cuenta/citas/:id` | `client` | Mis citas y cancelación |
+| `/admin` | `admin` | Resumen de la plataforma |
+| `/admin/usuarios`, `/nuevo`, `/:id`, `/:id/editar` | `admin` | Usuarios: listado, alta, detalle, roles, activar/desactivar, eliminar |
+| `/admin/negocios`, `/admin/negocios/:id` | `admin` | Negocios: listado, edición, estado y eliminación |
+| `/admin/leads` | `admin` | Leads de todos los negocios |
+| `/admin/roles` | `admin` | Catálogo de roles |
+| `*` | público | Página 404 |
+
+## Estructura de carpetas
+
+```text
+src/
+├── app/
+│   ├── router.tsx                    # Rutas públicas y paneles por rol (lazy loading)
+│   └── providers.tsx                 # QueryClientProvider, ThemeProvider, Toaster
+├── features/
+│   ├── landing/                      # Landing pública
+│   ├── auth/                         # api, schemas, roles, hooks, LoginForm/RegisterForm, RequireRole
+│   ├── panel/                        # PanelShell (sidebar + header), navegación y layouts por rol
+│   ├── business/                     # Panel de negocio: api, schemas, hooks, labels, components, pages
+│   ├── cliente/                      # Área de cliente: api, hooks, components, pages
+│   ├── admin/                        # Administración: api, schemas, hooks, components, pages
+│   └── whatsapp/                     # Cloud API: formulario, guía y envíos (sin cambios de alcance)
+├── server/
+│   └── whatsappPlugin.ts             # Plugin de Vite con los endpoints /api/whatsapp/*
+├── shared/
+│   ├── api/                          # http.ts, session.ts, resources.ts
+│   ├── components/
+│   │   ├── form/Fields.tsx           # TextField, TextAreaField, SelectField, CheckboxField (TanStack Form)
+│   │   ├── ui/                       # Button, Input, Label, Card, Checkbox, Select, Badge, Dialog, Tabs…
+│   │   ├── layout/                   # RootLayout, MarketingLayout, AuthLayout
+│   │   ├── ApiErrorAlert, QueryState, Pagination, StatCard, StatusBadge, Avatar, Charts, ConfirmDialog
+│   │   ├── LinkButton.tsx, PageHeader.tsx, EmptyState.tsx, FieldErrors.tsx, Logo.tsx, ThemeProvider.tsx
+│   ├── hooks/                        # useAppForm, useDebouncedValue, useReducedMotion
+│   ├── lib/                          # format.ts (fechas, moneda, ISO↔datetime-local), queryClient.ts, utils.ts
+│   └── pages/NotFoundPage.tsx
+├── types/index.ts                    # Tipos alineados con la spec (respuestas, payloads, enums)
+├── index.css                         # Tema Tailwind v4 (light/dark)
+└── main.tsx
+```
+
+## Puesta en marcha
+
+```bash
+npm install
+cp .env.example .env   # opcional: ajusta VITE_API_PROXY_TARGET o las variables de WhatsApp
+npm run dev            # http://localhost:5173
+```
+
+| Script | Descripción |
+| --- | --- |
+| `npm run dev` | Servidor de desarrollo (escucha en `0.0.0.0`) |
+| `npm run build` | Typecheck + build de producción (`dist/`) |
+| `npm run preview` | Previsualiza el build de producción (`0.0.0.0:4173`) |
+| `npm run typecheck` | TypeScript en modo proyecto (`tsc -b`, strict) |
+
+Variables del frontend (ver `.env.example`):
+
+```bash
+VITE_API_PROXY_TARGET=https://mediplan-api.appsline.com.mx   # destino del proxy /api
+# VITE_API_BASE_URL=https://api.ejemplo.com/api              # solo si no se usa el proxy
+```
 
 ## Stack tecnológico
 
@@ -32,116 +160,6 @@ automáticamente. Es el patrón oficial actual y el que usa este proyecto en
 
 > Lucide v1 también renombró algunos iconos (`BarChart3` → `ChartColumn`, `Loader2` →
 > `LoaderCircle`); se usan los nombres actuales.
-
-## Puesta en marcha
-
-```bash
-npm install
-npm run dev        # http://localhost:5173
-```
-
-| Script | Descripción |
-| --- | --- |
-| `npm run dev` | Servidor de desarrollo |
-| `npm run build` | Typecheck + build de producción (`dist/`) |
-| `npm run preview` | Previsualiza el build de producción |
-| `npm run typecheck` | TypeScript en modo proyecto (`tsc -b`, strict) |
-
-## Estructura de carpetas
-
-```text
-src/
-├── app/
-│   ├── router.tsx                    # createBrowserRouter con lazy loading por ruta
-│   └── providers.tsx                 # QueryClientProvider, ThemeProvider, Toaster
-├── features/
-│   ├── landing/
-│   │   ├── components/
-│   │   │   ├── HeroSection.tsx       # Headline + CTAs + mockup de agenda animado
-│   │   │   ├── AgendaMockup.tsx      # Mockup con slots en stagger y badges flotantes
-│   │   │   ├── FeaturesSection.tsx   # Agenda inteligente, seguimiento, notificaciones…
-│   │   │   ├── PricingSection.tsx    # 3 planes con toggle mensual/anual
-│   │   │   ├── TestimonialsSection.tsx
-│   │   │   └── CTASection.tsx
-│   │   └── pages/LandingPage.tsx
-│   ├── auth/
-│   │   ├── components/
-│   │   │   ├── LoginForm.tsx         # TanStack Form + Zod + useMutation + acceso social
-│   │   │   ├── RegisterForm.tsx      # Medidor de contraseña + selector de perfil
-│   │   │   ├── AuthShowcase.tsx      # Panel de marca del layout dividido
-│   │   │   └── SocialMarks.tsx       # Marcas Google / Microsoft
-│   │   ├── hooks/
-│   │   │   └── useAuth.ts            # useLogin / useRegister (mutations)
-│   │   ├── api.ts                    # API simulada (setTimeout + localStorage)
-│   │   ├── schemas.ts                # Esquemas Zod (Standard Schema)
-│   │   └── pages/
-│   │       ├── LoginPage.tsx
-│   │       └── RegisterPage.tsx
-│   ├── crm/                          # CRM completo (localStorage + datos demo)
-│   │   ├── components/               # Avatar, badges, stat cards, charts, diálogos
-│   │   ├── hooks/useCrm.ts           # Store reactivo (useSyncExternalStore)
-│   │   ├── pages/
-│   │   │   ├── ClientsPage.tsx       # Listado con búsqueda, filtros y paginación
-│   │   │   ├── ClientFormPage.tsx    # Alta / edición de clientes
-│   │   │   ├── ClientDetailPage.tsx  # Ficha 360° (actividad, tareas, citas, deals)
-│   │   │   ├── PipelinePage.tsx      # Kanban de oportunidades con drag & drop
-│   │   │   ├── FollowUpsPage.tsx     # Cola de seguimientos
-│   │   │   ├── AgendaPage.tsx        # Citas por día
-│   │   │   ├── ReportsPage.tsx       # Métricas y gráficas CSS
-│   │   │   └── SettingsPage.tsx      # Perfil de clínica, equipo, datos demo
-│   │   ├── seed.ts                   # Datos de demostración con fechas relativas
-│   │   ├── storage.ts                # CRUD sobre localStorage por clínica
-│   │   ├── selectors.ts              # Filtros y métricas derivadas
-│   │   ├── schemas.ts                # Esquemas Zod de los formularios
-│   │   ├── labels.ts                 # Etiquetas, iconos y estilos por catálogo
-│   │   ├── format.ts                 # Fechas relativas, moneda, iniciales
-│   │   └── types.ts
-│   ├── dashboard/
-│   │   ├── components/ClinicShell.tsx
-│   │   └── pages/                    # Resumen (KPIs CRM) y layout del panel
-│   └── whatsapp/                     # Cloud API: formulario, guía y envíos
-├── shared/
-│   ├── components/
-│   │   ├── ui/                       # Button, Input, Label, Card, Checkbox, Select, Badge, Dialog, Tabs
-│   │   ├── layout/                   # Header, Footer, RootLayout, MarketingLayout, AuthLayout
-│   │   ├── Logo.tsx
-│   │   ├── PageHeader.tsx            # Cabecera estándar de páginas del panel
-│   │   ├── EmptyState.tsx
-│   │   ├── ThemeProvider.tsx
-│   │   └── FieldErrors.tsx           # role="alert" accesible
-│   ├── hooks/
-│   │   ├── useAppForm.ts             # Wrapper de TanStack Form (contexto compartido)
-│   │   └── useReducedMotion.ts
-│   ├── lib/
-│   │   ├── queryClient.ts            # staleTime: 5 * 60 * 1000
-│   │   ├── animations.ts             # Variants reutilizables de Motion
-│   │   └── utils.ts                  # cn() para Tailwind
-│   └── pages/NotFoundPage.tsx
-├── types/
-│   └── index.ts                      # User, AuthResponse, Appointment, Patient, Clinic…
-├── index.css                         # Tema Tailwind v4 (light/dark, paleta clínica)
-└── main.tsx
-```
-
-## Rutas
-
-| Ruta | Descripción |
-| --- | --- |
-| `/` | Landing: hero, funciones, precios, testimonios y CTA |
-| `/login` | Inicio de sesión (TanStack Form + Zod) |
-| `/register` | Registro con tipo de profesional y aceptación de términos |
-| `/dashboard` | Resumen: KPIs del CRM, cola del día, pipeline y WhatsApp |
-| `/dashboard/clientes` | Clientes: listado con búsqueda, filtros y paginación |
-| `/dashboard/clientes/nuevo` | Alta de cliente |
-| `/dashboard/clientes/:id` | Ficha 360°: actividad, seguimientos, citas y oportunidades |
-| `/dashboard/pipeline` | Pipeline de ventas (kanban con drag & drop) |
-| `/dashboard/seguimientos` | Seguimientos: vencidos, hoy, pendientes y completados |
-| `/dashboard/agenda` | Agenda de citas por día |
-| `/dashboard/whatsapp` | Sincronización con WhatsApp Cloud API |
-| `/dashboard/reportes` | Reportes: clientes, origen, pipeline y conversión |
-| `/dashboard/configuracion` | Perfil de la clínica, equipo y datos de demostración |
-| `/dashboard/whatsapp` | Sincronización de WhatsApp con Graph API de Meta |
-| `*` | Página 404 |
 
 ## WhatsApp (API de Meta)
 
@@ -176,16 +194,6 @@ El webhook de Meta es `POST/GET /api/whatsapp/webhook`. Los tokens guardados en 
 viven en `data/` (ignorado por git). La guía paso a paso, con las pantallas actuales de Meta,
 está dentro del propio panel.
 
-## Demo sin backend
-
-Las llamadas de autenticación se simulan con `setTimeout` (≈900 ms) y la sesión se persiste en
-`localStorage` (`mediplan-auth`).
-
-- **Login:** cualquier email + contraseña de 8+ caracteres.
-- **Forzar error de API:** usa el email `fail@mediplan.app` para ver el `toast.error()` de
-  Sonner.
-- Los CTAs de "recuperar contraseña" y los enlaces legales son placeholders informativos.
-
 ## Accesibilidad y animaciones
 
 - Inputs con `<Label>` asociado, `aria-invalid` y errores con `role="alert"`.
@@ -201,3 +209,5 @@ Las llamadas de autenticación se simulan con `setTimeout` (≈900 ms) y la sesi
 - Imports con alias `@/` → `src/` (configurado en `vite.config.ts` y `tsconfig.app.json`).
 - TypeScript `strict` + `noUnusedLocals/Parameters`; `npm run typecheck` es obligatorio antes
   de commit.
+- Las peticiones pasan siempre por `apiRequest`; las consultas usan `queryOptions` y las
+  mutaciones invalidan el espacio de claves de su módulo.

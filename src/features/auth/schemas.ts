@@ -1,16 +1,21 @@
 import { z } from 'zod';
 
 /**
- * Esquemas Zod de autenticación (Standard Schema).
- *
- * Los esquemas de campo se reutilizan a nivel de campo en TanStack Form para
- * feedback inmediato; los esquemas de formulario validan el conjunto completo
- * al enviar y propagan los errores a cada campo.
+ * Esquemas Zod de autenticación (Standard Schema). Las reglas reflejan las
+ * validaciones de `POST /login` y `POST /register` de la documentación.
  */
 
-export const nameFieldSchema = z.string().min(2, 'Introduce tu nombre completo');
+export const nameFieldSchema = z
+  .string()
+  .trim()
+  .min(1, 'Introduce tu nombre completo')
+  .max(255, 'El nombre no puede superar los 255 caracteres');
 
-export const emailFieldSchema = z.email('Introduce un correo electrónico válido');
+export const emailFieldSchema = z
+  .email('Introduce un correo electrónico válido')
+  .max(255, 'El correo no puede superar los 255 caracteres');
+
+export const loginPasswordFieldSchema = z.string().min(1, 'Introduce tu contraseña');
 
 export const passwordFieldSchema = z
   .string()
@@ -18,12 +23,9 @@ export const passwordFieldSchema = z
 
 export const confirmPasswordFieldSchema = z.string().min(1, 'Confirma tu contraseña');
 
-export const professionalTypeFieldSchema = z.enum(
-  ['dentist', 'doctor', 'nurse', 'esthetician', 'other'],
-  'Selecciona tu tipo de profesional',
-);
-
-export const clinicNameFieldSchema = z.string().optional();
+export const roleFieldSchema = z.enum(['cliente', 'negocio'], {
+  error: 'Selecciona el tipo de cuenta',
+});
 
 export const acceptTermsFieldSchema = z.boolean().refine((value) => value, {
   error: 'Debes aceptar los términos y condiciones',
@@ -31,7 +33,7 @@ export const acceptTermsFieldSchema = z.boolean().refine((value) => value, {
 
 export const loginSchema = z.object({
   email: emailFieldSchema,
-  password: passwordFieldSchema,
+  password: loginPasswordFieldSchema,
 });
 
 export const registerSchema = z
@@ -40,8 +42,7 @@ export const registerSchema = z
     email: emailFieldSchema,
     password: passwordFieldSchema,
     confirmPassword: confirmPasswordFieldSchema,
-    professionalType: professionalTypeFieldSchema,
-    clinicName: clinicNameFieldSchema,
+    role: roleFieldSchema,
     acceptTerms: acceptTermsFieldSchema,
   })
   .refine((data) => data.password === data.confirmPassword, {
