@@ -58,10 +58,73 @@ export const router = createBrowserRouter([
             },
           },
           {
+            path: 'agenda',
+            lazy: async () => {
+              const { AgendaPage } = await import('@/features/crm/pages/AgendaPage');
+              return { Component: AgendaPage };
+            },
+          },
+          {
+            path: 'clientes',
+            lazy: async () => {
+              const { ClientsPage } = await import('@/features/crm/pages/ClientsPage');
+              return { Component: ClientsPage };
+            },
+          },
+          {
+            path: 'clientes/nuevo',
+            lazy: async () => {
+              const { ClientFormPage } = await import('@/features/crm/pages/ClientFormPage');
+              return { Component: ClientFormPage };
+            },
+          },
+          {
+            path: 'clientes/:clienteId',
+            lazy: async () => {
+              const { ClientDetailPage } = await import('@/features/crm/pages/ClientDetailPage');
+              return { Component: ClientDetailPage };
+            },
+          },
+          {
+            path: 'clientes/:clienteId/editar',
+            lazy: async () => {
+              const { ClientFormPage } = await import('@/features/crm/pages/ClientFormPage');
+              return { Component: ClientFormPage };
+            },
+          },
+          {
+            path: 'pipeline',
+            lazy: async () => {
+              const { PipelinePage } = await import('@/features/crm/pages/PipelinePage');
+              return { Component: PipelinePage };
+            },
+          },
+          {
+            path: 'seguimientos',
+            lazy: async () => {
+              const { FollowUpsPage } = await import('@/features/crm/pages/FollowUpsPage');
+              return { Component: FollowUpsPage };
+            },
+          },
+          {
             path: 'whatsapp',
             lazy: async () => {
               const { WhatsAppPage } = await import('@/features/whatsapp/pages/WhatsAppPage');
               return { Component: WhatsAppPage };
+            },
+          },
+          {
+            path: 'reportes',
+            lazy: async () => {
+              const { ReportsPage } = await import('@/features/crm/pages/ReportsPage');
+              return { Component: ReportsPage };
+            },
+          },
+          {
+            path: 'configuracion',
+            lazy: async () => {
+              const { SettingsPage } = await import('@/features/crm/pages/SettingsPage');
+              return { Component: SettingsPage };
             },
           },
         ],

@@ -3,9 +3,9 @@
 Sistema de gestión (SPA) para profesionales de la salud y la estética: agenda de citas,
 seguimiento de pacientes y notificaciones de promociones y descuentos.
 
-> **Fase actual:** Landing, autenticación y panel de clínica con sincronización de WhatsApp
-> contra la API oficial de Meta (Cloud API / Graph API). La agenda y el seguimiento de
-> pacientes siguen preparados como fases posteriores.
+> **Fase actual:** Landing, autenticación mejorada y panel de clínica con CRM completo
+> (clientes, seguimientos, pipeline, agenda y reportes) más sincronización de WhatsApp
+> contra la API oficial de Meta (Cloud API / Graph API).
 
 ## Stack tecnológico
 
@@ -66,8 +66,10 @@ src/
 │   │   └── pages/LandingPage.tsx
 │   ├── auth/
 │   │   ├── components/
-│   │   │   ├── LoginForm.tsx         # TanStack Form + Zod + useMutation
-│   │   │   └── RegisterForm.tsx
+│   │   │   ├── LoginForm.tsx         # TanStack Form + Zod + useMutation + acceso social
+│   │   │   ├── RegisterForm.tsx      # Medidor de contraseña + selector de perfil
+│   │   │   ├── AuthShowcase.tsx      # Panel de marca del layout dividido
+│   │   │   └── SocialMarks.tsx       # Marcas Google / Microsoft
 │   │   ├── hooks/
 │   │   │   └── useAuth.ts            # useLogin / useRegister (mutations)
 │   │   ├── api.ts                    # API simulada (setTimeout + localStorage)
@@ -75,15 +77,36 @@ src/
 │   │   └── pages/
 │   │       ├── LoginPage.tsx
 │   │       └── RegisterPage.tsx
+│   ├── crm/                          # CRM completo (localStorage + datos demo)
+│   │   ├── components/               # Avatar, badges, stat cards, charts, diálogos
+│   │   ├── hooks/useCrm.ts           # Store reactivo (useSyncExternalStore)
+│   │   ├── pages/
+│   │   │   ├── ClientsPage.tsx       # Listado con búsqueda, filtros y paginación
+│   │   │   ├── ClientFormPage.tsx    # Alta / edición de clientes
+│   │   │   ├── ClientDetailPage.tsx  # Ficha 360° (actividad, tareas, citas, deals)
+│   │   │   ├── PipelinePage.tsx      # Kanban de oportunidades con drag & drop
+│   │   │   ├── FollowUpsPage.tsx     # Cola de seguimientos
+│   │   │   ├── AgendaPage.tsx        # Citas por día
+│   │   │   ├── ReportsPage.tsx       # Métricas y gráficas CSS
+│   │   │   └── SettingsPage.tsx      # Perfil de clínica, equipo, datos demo
+│   │   ├── seed.ts                   # Datos de demostración con fechas relativas
+│   │   ├── storage.ts                # CRUD sobre localStorage por clínica
+│   │   ├── selectors.ts              # Filtros y métricas derivadas
+│   │   ├── schemas.ts                # Esquemas Zod de los formularios
+│   │   ├── labels.ts                 # Etiquetas, iconos y estilos por catálogo
+│   │   ├── format.ts                 # Fechas relativas, moneda, iniciales
+│   │   └── types.ts
 │   ├── dashboard/
 │   │   ├── components/ClinicShell.tsx
-│   │   └── pages/                    # Resumen y layout del panel
+│   │   └── pages/                    # Resumen (KPIs CRM) y layout del panel
 │   └── whatsapp/                     # Cloud API: formulario, guía y envíos
 ├── shared/
 │   ├── components/
-│   │   ├── ui/                       # Button, Input, Label, Card, Checkbox, Select, Badge
+│   │   ├── ui/                       # Button, Input, Label, Card, Checkbox, Select, Badge, Dialog, Tabs
 │   │   ├── layout/                   # Header, Footer, RootLayout, MarketingLayout, AuthLayout
 │   │   ├── Logo.tsx
+│   │   ├── PageHeader.tsx            # Cabecera estándar de páginas del panel
+│   │   ├── EmptyState.tsx
 │   │   ├── ThemeProvider.tsx
 │   │   └── FieldErrors.tsx           # role="alert" accesible
 │   ├── hooks/
@@ -107,7 +130,16 @@ src/
 | `/` | Landing: hero, funciones, precios, testimonios y CTA |
 | `/login` | Inicio de sesión (TanStack Form + Zod) |
 | `/register` | Registro con tipo de profesional y aceptación de términos |
-| `/dashboard` | Panel de la clínica: resumen y acceso a WhatsApp |
+| `/dashboard` | Resumen: KPIs del CRM, cola del día, pipeline y WhatsApp |
+| `/dashboard/clientes` | Clientes: listado con búsqueda, filtros y paginación |
+| `/dashboard/clientes/nuevo` | Alta de cliente |
+| `/dashboard/clientes/:id` | Ficha 360°: actividad, seguimientos, citas y oportunidades |
+| `/dashboard/pipeline` | Pipeline de ventas (kanban con drag & drop) |
+| `/dashboard/seguimientos` | Seguimientos: vencidos, hoy, pendientes y completados |
+| `/dashboard/agenda` | Agenda de citas por día |
+| `/dashboard/whatsapp` | Sincronización con WhatsApp Cloud API |
+| `/dashboard/reportes` | Reportes: clientes, origen, pipeline y conversión |
+| `/dashboard/configuracion` | Perfil de la clínica, equipo y datos de demostración |
 | `/dashboard/whatsapp` | Sincronización de WhatsApp con Graph API de Meta |
 | `*` | Página 404 |
 
