@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { BadgeDollarSign, CalendarClock, Target } from 'lucide-react';
 
-import { LEAD_STATUS_LABEL, LEAD_STATUS_OPTIONS } from '@/features/business/labels';
+import { LEAD_STATUS_LABEL, LEAD_STATUS_OPTIONS, leadSourceLabel } from '@/features/business/labels';
 import { Avatar } from '@/shared/components/Avatar';
 import { EASE_SOFT } from '@/shared/lib/animations';
 import { dayDiff, formatDate, formatMoney, formatRelativeDay } from '@/shared/lib/format';
@@ -168,7 +168,9 @@ function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: (lead: Lead) => void }
           </span>
         ) : null}
         {lead.source ? (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{lead.source}</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+            {leadSourceLabel(lead.source)}
+          </span>
         ) : null}
       </div>
 

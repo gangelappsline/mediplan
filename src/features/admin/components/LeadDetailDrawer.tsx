@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import { LEAD_STATUS_LABEL } from '@/features/business/labels';
+import { LEAD_STATUS_LABEL, leadSourceLabel } from '@/features/business/labels';
 import { Avatar } from '@/shared/components/Avatar';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { Button } from '@/shared/components/ui/button';
@@ -82,7 +82,7 @@ export function LeadDetailDrawer({ lead, open, onOpenChange }: LeadDetailDrawerP
           <Row icon={Mail} label="Correo" value={lead.email} href={lead.email ? `mailto:${lead.email}` : undefined} />
           <Row icon={Phone} label="Teléfono" value={lead.phone} href={lead.phone ? `tel:${lead.phone}` : undefined} />
           <Row icon={Building2} label="Empresa" value={lead.company} />
-          <Row icon={MessageSquare} label="Origen" value={lead.source} />
+          <Row icon={MessageSquare} label="Origen" value={leadSourceLabel(lead.source)} />
           <Row icon={Target} label="Negocio" value={`#${lead.business_id}`} to={`/admin/negocios/${lead.business_id}`} />
         </Section>
 
