@@ -1,10 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { CircleAlert, Store } from 'lucide-react';
+import { Suspense, lazy } from 'react';
 import { Outlet } from 'react-router-dom';
 
+/** La búsqueda de la paleta (cmdk) se carga solo al abrir la paleta. */
+const AdminPaletteResults = lazy(() =>
+  import('@/features/admin/components/AdminPaletteResults').then((module) => ({ default: module.AdminPaletteResults })),
+);
 import { businessProfileQuery } from '@/features/business/hooks';
 import { PanelShell } from '@/features/panel/PanelShell';
-import { businessFooterItem, adminNav, clientNav, businessNav } from '@/features/panel/navigation';
+import { adminNav, businessFooterItem, businessNav, clientNav } from '@/features/panel/navigation';
 import { ApiError } from '@/shared/api/http';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { ErrorState, LoadingState } from '@/shared/components/QueryState';
@@ -64,9 +69,22 @@ function ClientLayout() {
   );
 }
 
+/**
+ * Panel de administración. Además de la navegación, la paleta de comandos
+ * (`⌘K`) busca usuarios y negocios de toda la plataforma.
+ */
 function AdminLayout() {
   return (
-    <PanelShell groups={adminNav} roleLabel="Administrador" headerTitle="Administración de MediPlan">
+    <PanelShell
+      groups={adminNav}
+      roleLabel="Administrador"
+      headerTitle="Administración"
+      paletteSections={(query, close) => (
+        <Suspense fallback={null}>
+          <AdminPaletteResults query={query} close={close} />
+        </Suspense>
+      )}
+    >
       <Outlet />
     </PanelShell>
   );
