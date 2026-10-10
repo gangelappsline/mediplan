@@ -1,9 +1,24 @@
-import { CalendarDays, LayoutDashboard, LogOut, MessageCircle, Moon, Sun, Users } from 'lucide-react';
+import {
+  CalendarDays,
+  ChartColumn,
+  ClipboardList,
+  LayoutDashboard,
+  LogOut,
+  MessageCircle,
+  Moon,
+  Settings,
+  Sun,
+  Target,
+  Users,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useSyncExternalStore } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 
 import { clearSession, loadSession } from '@/features/auth/api';
+import { useCrm } from '@/features/crm/hooks/useCrm';
+import { overdueTasks } from '@/features/crm/selectors';
 import { clinicDisplayName, clinicIdFromSession } from '@/features/whatsapp/clinic';
 import { readPublicConnection, subscribeWhatsApp } from '@/features/whatsapp/storage';
 import { Logo } from '@/shared/components/Logo';
@@ -15,28 +30,86 @@ interface ClinicShellProps {
   children: ReactNode;
 }
 
-const navItems = [
-  { to: '/dashboard', label: 'Resumen', icon: LayoutDashboard, end: true, disabled: false },
-  { to: '/dashboard/whatsapp', label: 'WhatsApp', icon: MessageCircle, end: false, disabled: false },
-  { to: '/dashboard/agenda', label: 'Agenda', icon: CalendarDays, end: false, disabled: true },
-  { to: '/dashboard/pacientes', label: 'Pacientes', icon: Users, end: false, disabled: true },
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+  /** Indicador lateral opcional (p. ej. WhatsApp conectado o tareas vencidas). */
+  indicator?: 'whatsapp' | 'overdue';
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const navGroups: readonly NavGroup[] = [
+  {
+    label: 'Principal',
+    items: [
+      { to: '/dashboard', label: 'Resumen', icon: LayoutDashboard, end: true },
+      { to: '/dashboard/agenda', label: 'Agenda', icon: CalendarDays },
+    ],
+  },
+  {
+    label: 'CRM',
+    items: [
+      { to: '/dashboard/clientes', label: 'Clientes', icon: Users },
+      { to: '/dashboard/pipeline', label: 'Pipeline', icon: Target },
+      { to: '/dashboard/seguimientos', label: 'Seguimientos', icon: ClipboardList, indicator: 'overdue' },
+    ],
+  },
+  {
+    label: 'Crecimiento',
+    items: [
+      { to: '/dashboard/whatsapp', label: 'WhatsApp', icon: MessageCircle, indicator: 'whatsapp' },
+      { to: '/dashboard/reportes', label: 'Reportes', icon: ChartColumn },
+    ],
+  },
 ] as const;
+
+const flatNavItems = navGroups.flatMap((group) => group.items);
 
 function ClinicShell({ children }: ClinicShellProps) {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const session = loadSession();
   const clinicId = clinicIdFromSession();
+  const { data } = useCrm();
   const connection = useSyncExternalStore(
     subscribeWhatsApp,
     () => readPublicConnection(clinicId),
     () => null,
   );
   const clinicName = clinicDisplayName();
+  const overdueCount = overdueTasks(data).length;
 
   function handleLogout() {
     clearSession();
     navigate('/');
+  }
+
+  function renderIndicator(item: NavItem) {
+    if (item.indicator === 'whatsapp') {
+      return (
+        <span
+          className={cn('size-2 rounded-full', connection ? 'bg-emerald-500' : 'bg-amber-500')}
+          aria-label={connection ? 'WhatsApp sincronizado' : 'WhatsApp sin sincronizar'}
+        />
+      );
+    }
+    if (item.indicator === 'overdue' && overdueCount > 0) {
+      return (
+        <span
+          className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] leading-none font-semibold text-white"
+          aria-label={`${overdueCount} seguimientos vencidos`}
+        >
+          {overdueCount}
+        </span>
+      );
+    }
+    return null;
   }
 
   return (
@@ -47,44 +120,52 @@ function ClinicShell({ children }: ClinicShellProps) {
             <Logo />
           </Link>
         </div>
-        <nav aria-label="Panel de la clínica" className="flex flex-1 flex-col gap-1 px-3">
-          {navItems.map((item) =>
-            item.disabled ? (
-              <span
-                key={item.label}
-                className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground/70"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <item.icon className="size-4" />
-                  {item.label}
-                </span>
-                <span className="text-[10px] tracking-wide uppercase">Pronto</span>
-              </span>
-            ) : (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )
-                }
-              >
-                <span className="inline-flex items-center gap-2">
-                  <item.icon className="size-4" />
-                  {item.label}
-                </span>
-                {item.to === '/dashboard/whatsapp' ? (
-                  <span
-                    className={cn('size-2 rounded-full', connection ? 'bg-emerald-500' : 'bg-amber-500')}
-                    aria-label={connection ? 'WhatsApp sincronizado' : 'WhatsApp sin sincronizar'}
-                  />
-                ) : null}
-              </NavLink>
-            ),
-          )}
+        <nav aria-label="Panel de la clínica" className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4">
+          {navGroups.map((group) => (
+            <div key={group.label} className="flex flex-col gap-1">
+              <p className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+                {group.label}
+              </p>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end ?? false}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )
+                  }
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <item.icon className="size-4" />
+                    {item.label}
+                  </span>
+                  {renderIndicator(item)}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+
+          <div className="mt-auto flex flex-col gap-1 border-t pt-3">
+            <NavLink
+              to="/dashboard/configuracion"
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )
+              }
+            >
+              <Settings className="size-4" />
+              Configuración
+            </NavLink>
+          </div>
         </nav>
         <div className="border-t px-4 py-4">
           <p className="truncate text-sm font-medium">{session?.user.name ?? 'Invitado'}</p>
@@ -116,23 +197,34 @@ function ClinicShell({ children }: ClinicShellProps) {
             </div>
           </div>
           <nav aria-label="Secciones del panel" className="flex gap-1 overflow-x-auto px-3 pb-3 md:hidden">
-            {navItems.map((item) =>
-              item.disabled ? null : (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    cn(
-                      'rounded-full px-3 py-1.5 text-sm whitespace-nowrap',
-                      isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                    )
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ),
-            )}
+            {flatNavItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end ?? false}
+                className={({ isActive }) =>
+                  cn(
+                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm whitespace-nowrap',
+                    isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  )
+                }
+              >
+                <item.icon className="size-3.5" />
+                {item.label}
+              </NavLink>
+            ))}
+            <NavLink
+              to="/dashboard/configuracion"
+              className={({ isActive }) =>
+                cn(
+                  'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm whitespace-nowrap',
+                  isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                )
+              }
+            >
+              <Settings className="size-3.5" />
+              Ajustes
+            </NavLink>
           </nav>
         </header>
         <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">{children}</main>
