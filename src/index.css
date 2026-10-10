@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css" layer(base);
 
 @custom-variant dark (&:is(.dark *));
 
@@ -25,6 +26,10 @@
   --border: oklch(0.91 0.012 235);
   --input: oklch(0.91 0.012 235);
   --ring: oklch(0.55 0.12 184);
+
+  /* Superficies elevadas del panel (tarjetas flotantes, sidebar, paleta ⌘K) */
+  --elevated: oklch(1 0 0);
+  --shadow-color: 220 40% 20%;
 }
 
 .dark {
@@ -47,6 +52,9 @@
   --border: oklch(0.3 0.024 245);
   --input: oklch(0.3 0.024 245);
   --ring: oklch(0.68 0.12 184);
+
+  --elevated: oklch(0.22 0.024 245);
+  --shadow-color: 230 60% 4%;
 }
 
 @theme inline {
@@ -69,6 +77,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-elevated: var(--elevated);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -97,5 +106,198 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+
+  :focus-visible {
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* esqueletos de carga con brillo deslizante */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: color-mix(in oklab, var(--muted-foreground) 12%, transparent);
+  }
+
+  .skeleton::after {
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--foreground) 7%, transparent),
+      transparent
+    );
+    animation: mediplan-shimmer 1.6s infinite;
+    content: "";
+  }
+
+  /* áreas desplazables discretas (sidebar, tablas, paleta de comandos) */
+  .scroll-area {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
+  }
+
+  .scroll-area::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scroll-area::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+    border-radius: 999px;
+  }
+
+  .scroll-area::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+  }
+
+  .scroll-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* halo decorativo de las cabeceras del panel */
+  .surface-glow {
+    background-image:
+      radial-gradient(60rem 24rem at 12% -20%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 70%),
+      radial-gradient(40rem 20rem at 92% -30%, color-mix(in oklab, oklch(0.62 0.14 265) 12%, transparent), transparent 70%);
+  }
+
+  .surface-dots {
+    background-image: radial-gradient(color-mix(in oklab, var(--muted-foreground) 18%, transparent) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+}
+
+@keyframes mediplan-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ------------------------------- React Flow ------------------------------ */
+/* Tema del lienzo de nodos (mapa de la plataforma, roles y negocio). Los
+   colores salen de las variables del tema, así que sigue el modo claro/oscuro. */
+@layer base {
+  .mediplan-flow {
+    --xy-background-color: transparent;
+    --xy-background-pattern-dots-color-default: color-mix(in oklab, var(--muted-foreground) 24%, transparent);
+    --xy-edge-stroke-default: color-mix(in oklab, var(--muted-foreground) 42%, transparent);
+    --xy-edge-stroke-width-default: 1.6;
+    --xy-edge-stroke-selected-default: var(--primary);
+    --xy-node-color: var(--foreground);
+    --xy-node-border: none;
+    --xy-node-border-radius: 0;
+    --xy-node-background-color: transparent;
+    --xy-handle-background-color: var(--border);
+    --xy-handle-border-color: var(--border);
+    --xy-selection-border-color-default: var(--primary);
+    --xy-selection-background-color-default: color-mix(in oklab, var(--primary) 12%, transparent);
+    --xy-controls-button-background-color-default: var(--card);
+    --xy-controls-button-border-color-default: var(--border);
+    --xy-controls-button-color-default: var(--muted-foreground);
+    --xy-controls-button-background-color-hover-default: var(--accent);
+    --xy-controls-button-color-hover-default: var(--accent-foreground);
+    --xy-minimap-background-color-default: var(--card);
+    --xy-attribution-background-color-default: transparent;
+  }
+
+  .mediplan-flow .react-flow__node,
+  .mediplan-flow .react-flow__edge {
+    transition: opacity 240ms ease;
+  }
+
+  .mediplan-flow .react-flow__node.is-dimmed,
+  .mediplan-flow .react-flow__edge.is-dimmed {
+    opacity: 0.16;
+  }
+
+  .mediplan-flow .react-flow__node.is-clickable {
+    cursor: pointer;
+  }
+
+  /* el grafo es de lectura: los manejadores no se muestran ni se arrastran */
+  .mediplan-flow .react-flow__handle {
+    width: 1px;
+    height: 1px;
+    min-width: 0;
+    min-height: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .mediplan-flow .react-flow__edge-text {
+    fill: var(--muted-foreground);
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  .mediplan-flow .react-flow__edge-textbg {
+    fill: var(--card);
+  }
+
+  .mediplan-flow .react-flow__controls {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    box-shadow: 0 8px 24px -12px rgb(var(--shadow-color) / 0.35);
+  }
+
+  .mediplan-flow .react-flow__controls-button {
+    width: 28px;
+    height: 28px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mediplan-flow .react-flow__controls-button svg {
+    fill: currentColor;
+  }
+
+  .mediplan-flow .react-flow__minimap {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+  }
+
+  .mediplan-flow .react-flow__attribution {
+    color: var(--muted-foreground);
+    font-size: 10px;
+  }
+
+  .mediplan-flow .react-flow__attribution a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .mediplan-flow .react-flow__attribution a:hover {
+    text-decoration: underline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sin brillo en esqueletos, sin aristas animadas y transiciones mínimas. */
+  .skeleton::after {
+    animation: none;
+  }
+
+  .mediplan-flow .react-flow__edge.animated path {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

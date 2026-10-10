@@ -40,6 +40,16 @@ export const LEAD_SOURCE_OPTIONS: ReadonlyArray<{ value: string; label: string }
   { value: 'otro', label: 'Otro' },
 ];
 
+export const LEAD_SOURCE_LABEL: Record<string, string> = Object.fromEntries(
+  LEAD_SOURCE_OPTIONS.map((option) => [option.value, option.label]),
+);
+
+/** Etiqueta legible del origen de un lead; devuelve el valor crudo si la API manda otro. */
+export function leadSourceLabel(source: string | null | undefined): string {
+  if (!source) return '—';
+  return LEAD_SOURCE_LABEL[source] ?? source;
+}
+
 export const DAY_LABELS: Record<DayKey, string> = {
   monday: 'Lunes',
   tuesday: 'Martes',

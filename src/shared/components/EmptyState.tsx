@@ -1,5 +1,7 @@
+import { motion } from 'motion/react';
 import type { ComponentType, ReactNode } from 'react';
 
+import { popIn, springSoft } from '@/shared/lib/animations';
 import { cn } from '@/shared/lib/utils';
 
 interface EmptyStateProps {
@@ -13,23 +15,32 @@ interface EmptyStateProps {
 /** Estado vacío con icono, mensaje y acción opcional. */
 function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
   return (
-    <div
+    <motion.div
       className={cn(
-        'flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-6 py-12 text-center',
+        'flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-14 text-center',
         className,
       )}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springSoft}
     >
       {Icon ? (
-        <div className="flex size-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-          <Icon className="size-6" />
-        </div>
+        <motion.span
+          variants={popIn}
+          initial="hidden"
+          animate="visible"
+          className="relative flex size-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground"
+        >
+          <span aria-hidden="true" className="absolute inset-0 rounded-2xl bg-primary/5" />
+          <Icon className="relative size-6" />
+        </motion.span>
       ) : null}
-      <p className="font-medium">{title}</p>
-      {description ? (
-        <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
-      ) : null}
+      <div className="space-y-1">
+        <p className="font-medium">{title}</p>
+        {description ? <p className="max-w-sm text-sm text-muted-foreground">{description}</p> : null}
+      </div>
       {action ? <div className="mt-2">{action}</div> : null}
-    </div>
+    </motion.div>
   );
 }
 

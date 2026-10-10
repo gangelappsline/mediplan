@@ -1,110 +1,185 @@
-import { Plus, Search, Users } from 'lucide-react';
+import { LayoutGrid, Plus, RefreshCw, Table2, Users } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 
+import { UserCard } from '@/features/admin/components/UserCard';
+import { UserRolesDialog } from '@/features/admin/components/UserRolesDialog';
+import { UsersTable } from '@/features/admin/components/UsersTable';
 import { useAdminUsers } from '@/features/admin/hooks';
 import { LinkButton } from '@/shared/components/LinkButton';
-import { Avatar } from '@/shared/components/Avatar';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Pagination } from '@/shared/components/Pagination';
 import { QueryBoundary } from '@/shared/components/QueryState';
-import { StatusBadge } from '@/shared/components/StatusBadge';
-import { Badge } from '@/shared/components/ui/badge';
-import { Card, CardContent } from '@/shared/components/ui/card';
-import { Input } from '@/shared/components/ui/input';
+import { StaggerItem, StaggerList } from '@/shared/components/motion/Reveal';
+import { SearchInput, Toolbar, ToolbarSummary, ViewToggle } from '@/shared/components/Toolbar';
+import { Button } from '@/shared/components/ui/button';
+import { EntityCardSkeleton, TableSkeleton } from '@/shared/components/ui/skeleton';
+import { Tooltip } from '@/shared/components/ui/tooltip';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { formatDate } from '@/shared/lib/format';
+import { usePersistentState } from '@/shared/hooks/usePersistentState';
+import { swapVariants } from '@/shared/lib/animations';
+import { cn } from '@/shared/lib/utils';
+import type { User } from '@/types';
 
+const VIEW_OPTIONS = [
+  { value: 'table', label: 'Vista de tabla', icon: Table2 },
+  { value: 'cards', label: 'Vista de tarjetas', icon: LayoutGrid },
+] as const;
+
+type ViewMode = (typeof VIEW_OPTIONS)[number]['value'];
+
+/** Listado de usuarios de la plataforma (`GET /admin/users`). */
 export function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const debounced = useDebouncedValue(search.trim(), 300);
   const [page, setPage] = useState(1);
-  const users = useAdminUsers({ search: debounced || undefined, page, per_page: 15 });
+  const [perPage, setPerPage] = usePersistentState<number>('mediplan-admin-users-per-page', 15);
+  const [view, setView] = usePersistentState<ViewMode>('mediplan-admin-users-view', 'table');
+  const [rolesTarget, setRolesTarget] = useState<User | null>(null);
+  const [rolesOpen, setRolesOpen] = useState(false);
+
+  function openRoles(user: User) {
+    setRolesTarget(user);
+    setRolesOpen(true);
+  }
+
+  const users = useAdminUsers({ search: debounced || undefined, page, per_page: perPage });
+  const list = users.data?.data ?? [];
+  const total = users.data?.meta.total ?? 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
+        eyebrow="Plataforma"
+        icon={Users}
         title="Usuarios"
-        description="Cuentas de clientes, negocios y administradores."
-        actions={<LinkButton to="/admin/usuarios/nuevo"><Plus />Nuevo usuario</LinkButton>}
+        description="Cuentas de clientes, negocios y administradores de MediPlan."
+        actions={
+          <LinkButton to="/admin/usuarios/nuevo">
+            <Plus />
+            Nuevo usuario
+          </LinkButton>
+        }
       />
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative max-w-md">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Buscar por nombre o correo"
-              aria-label="Buscar usuarios"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <Toolbar>
+        <SearchInput
+          value={search}
+          onChange={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
+          placeholder="Buscar por nombre o correo"
+          ariaLabel="Buscar usuarios"
+          busy={users.isFetching}
+          shortcut="/"
+        />
+        <div className="ml-auto flex items-center gap-2">
+          <ToolbarSummary className="hidden sm:block">
+            {users.isLoading ? (
+              'Cargando…'
+            ) : (
+              <>
+                <span className="font-semibold text-foreground tabular-nums">{total}</span>{' '}
+                {total === 1 ? 'usuario' : 'usuarios'}
+                {debounced ? ` para «${debounced}»` : ''}
+              </>
+            )}
+          </ToolbarSummary>
+          <Tooltip content="Actualizar listado">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              aria-label="Actualizar listado de usuarios"
+              onClick={() => void users.refetch()}
+              disabled={users.isFetching}
+            >
+              <RefreshCw className={cn('size-4', users.isFetching && 'animate-spin')} />
+            </Button>
+          </Tooltip>
+          <ViewToggle options={VIEW_OPTIONS} value={view} onChange={setView} ariaLabel="Cambiar vista de usuarios" />
+        </div>
+      </Toolbar>
 
       <QueryBoundary
         isLoading={users.isLoading}
         error={users.error}
         onRetry={() => void users.refetch()}
-        isEmpty={users.data?.data.length === 0}
-        emptyState={<EmptyState icon={Users} title="No hay usuarios que coincidan" description="Prueba con otra búsqueda." />}
+        isEmpty={list.length === 0}
+        isFetching={users.isFetching}
+        skeleton={view === 'table' ? <TableSkeleton rows={8} columns={5} /> : <CardsSkeleton />}
+        emptyState={
+          <EmptyState
+            icon={Users}
+            title="No hay usuarios que coincidan"
+            description={debounced ? `Sin resultados para «${debounced}».` : 'Todavía no hay cuentas registradas.'}
+            action={
+              debounced ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearch('');
+                    setPage(1);
+                  }}
+                >
+                  Limpiar búsqueda
+                </Button>
+              ) : (
+                <LinkButton to="/admin/usuarios/nuevo" variant="outline" size="sm">
+                  <Plus />
+                  Crear el primer usuario
+                </LinkButton>
+              )
+            }
+          />
+        }
       >
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b text-left text-xs text-muted-foreground uppercase">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Usuario</th>
-                  <th className="hidden px-4 py-3 font-medium md:table-cell">Roles</th>
-                  <th className="hidden px-4 py-3 font-medium lg:table-cell">Negocio</th>
-                  <th className="px-4 py-3 font-medium">Estado</th>
-                  <th className="hidden px-4 py-3 font-medium sm:table-cell">Alta</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {users.data?.data.map((user) => (
-                  <tr key={user.id} className="hover:bg-muted/40">
-                    <td className="px-4 py-3">
-                      <Link to={`/admin/usuarios/${user.id}`} className="flex items-center gap-3">
-                        <Avatar name={user.name} size="sm" />
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium hover:underline">{user.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="hidden px-4 py-3 md:table-cell">
-                      <div className="flex flex-wrap gap-1">
-                        {user.roles.map((role) => (
-                          <Badge key={role.name} variant="outline">
-                            {role.label}
-                          </Badge>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{user.business?.name ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge name={user.is_active ? 'active' : 'inactive'} label={user.is_active ? 'Activo' : 'Inactivo'} />
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
-                      {user.created_at ? formatDate(user.created_at) : '—'}
-                    </td>
-                  </tr>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={view} variants={swapVariants} initial="initial" animate="enter" exit="exit">
+            {view === 'table' ? (
+              <UsersTable users={list} onManageRoles={openRoles} />
+            ) : (
+              <StaggerList className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {list.map((user) => (
+                  <StaggerItem key={user.id} className="h-full">
+                    <UserCard user={user} onManageRoles={openRoles} />
+                  </StaggerItem>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="border-t p-4">
-            <Pagination meta={users.data?.meta} onPageChange={setPage} />
-          </div>
-        </Card>
+              </StaggerList>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        <div className="mt-4 rounded-xl border border-border/60 bg-card px-4 py-3">
+          <Pagination
+            meta={users.data?.meta}
+            onPageChange={setPage}
+            onPerPageChange={(next) => {
+              setPerPage(next);
+              setPage(1);
+            }}
+          />
+        </div>
       </QueryBoundary>
+
+      {rolesTarget ? (
+        <UserRolesDialog open={rolesOpen} onOpenChange={setRolesOpen} user={rolesTarget} />
+      ) : null}
+    </div>
+  );
+}
+
+function CardsSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <EntityCardSkeleton key={index} />
+      ))}
     </div>
   );
 }

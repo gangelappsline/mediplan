@@ -40,6 +40,8 @@ interface LogoProps {
   markClassName?: string;
   /** Tamaño del wordmark. */
   size?: 'sm' | 'md' | 'lg';
+  /** Muestra solo el isotipo (sidebar plegado). */
+  markOnly?: boolean;
 }
 
 const textSizes = {
@@ -49,13 +51,15 @@ const textSizes = {
 } as const;
 
 /** Logo completo de MediPlan (isotipo + wordmark). */
-function Logo({ className, markClassName, size = 'md' }: LogoProps) {
+function Logo({ className, markClassName, size = 'md', markOnly = false }: LogoProps) {
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
       <LogoMark className={cn(size === 'lg' && 'size-10', markClassName)} />
-      <span className={cn('font-semibold tracking-tight', textSizes[size])}>
-        Medi<span className="text-primary">Plan</span>
-      </span>
+      {markOnly ? null : (
+        <span className={cn('font-semibold tracking-tight', textSizes[size])}>
+          Medi<span className="text-primary">Plan</span>
+        </span>
+      )}
     </span>
   );
 }
